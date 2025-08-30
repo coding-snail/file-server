@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上传</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .upload-container {
+            margin: 30px auto;
+            padding: 20px;
+            border: 1px dashed #ccc;
+            border-radius: 5px;
+            max-width: 500px;
+        }
+        #fileInput {
+            display: none;
+        }
+        .custom-file-upload {
+            border: 1px solid #ccc;
+            display: inline-block;
+            padding: 6px 12px;
+            cursor: pointer;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .custom-file-upload:hover {
+            background-color: #e9ecef;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin-top: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #selectedFileName {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>文件上传系统</h1>
+    
+    <div class="upload-container">
+        <p>点击选择文件，然后上传到服务器</p>
+        
+        <label for="fileInput" class="custom-file-upload">
+            选择文件
+        </label>
+        <input type="file" id="fileInput" name="file">
+        
+        <div id="selectedFileName"></div>
+        
+        <button id="uploadBtn" disabled>上传文件</button>
+    </div>
+    
+    <div id="message"></div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const selectedFileName = document.getElementById('selectedFileName');
+        const message = document.getElementById('message');
+
+        // 当选择文件时启用上传按钮
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                uploadBtn.disabled = false;
+                selectedFileName.textContent = '已选择: ' + fileInput.files[0].name;
+            } else {
+                uploadBtn.disabled = true;
+                selectedFileName.textContent = '';
+            }
+        });
+
+        // 上传文件处理
+        uploadBtn.addEventListener('click', function() {
+            const file = fileInput.files[0];
+            if (!file) {
+                showMessage('请选择一个文件', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            showMessage('上传中...', 'info');
+            uploadBtn.disabled = true;
+
+            fetch('/api/files/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.text();
+                }
+                throw new Error('上传失败');
+            })
+            .then(data => {
+                showMessage(data, 'success');
+                // 重置表单
+                fileInput.value = '';
+                uploadBtn.disabled = true;
+                selectedFileName.textContent = '';
+            })
+            .catch(error => {
+                showMessage('上传失败: ' + error.message, 'error');
+                uploadBtn.disabled = false;
+            });
+        });
+
+        // 显示消息
+        function showMessage(text, type) {
+            message.textContent = text;
+            message.className = type;
+            // 3秒后清除消息
+            setTimeout(() => {
+                message.textContent = '';
+                message.className = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

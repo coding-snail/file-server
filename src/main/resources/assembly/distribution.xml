@@ -1,0 +1,36 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.1.1 http://maven.apache.org/xsd/assembly-2.1.1.xsd">
+    <id>distribution</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <fileSets>
+        <!-- 包含jar文件 -->
+        <fileSet>
+            <directory>${project.build.directory}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>web.jar</include>
+            </includes>
+        </fileSet>
+        <!-- 包含启动脚本和README -->
+        <fileSet>
+            <directory>${project.basedir}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>start.sh</include>
+                <include>start.bat</include>
+                <include>README.md</include>
+            </includes>
+        </fileSet>
+        <!-- 创建空的file目录 -->
+        <fileSet>
+            <directory>${project.basedir}</directory>
+            <outputDirectory>/file</outputDirectory>
+            <includes>
+                <include>.gitkeep</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+</assembly>
