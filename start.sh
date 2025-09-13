@@ -6,4 +6,4 @@ if [ ! -d "file" ]; then
 fi
 
 # 启动Spring Boot应用
-java -jar web.jar
+nohup java -jar web.jar &
