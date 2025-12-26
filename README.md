@@ -18,6 +18,7 @@ mvn clean package
 ```
 
 打包后会在 `target` 目录生成 `webapp.zip` 文件，包含:
+
 - web.jar (应用程序jar包)
 - file 目录 (文件存储目录)
 - start.sh (Linux/Mac启动脚本)
