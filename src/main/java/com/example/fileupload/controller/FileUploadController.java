@@ -6,7 +6,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,54 +20,85 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
-@EnableAsync
 public class FileUploadController {
 
     @Value("${file.upload-dir}")
     private String uploadDir;
 
     @PostMapping("/api/files/upload")
-    public CompletableFuture<ResponseEntity<String>> uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file) {
+        long requestStartTime = System.currentTimeMillis();
+
         if (file.isEmpty()) {
-            return CompletableFuture.completedFuture(new ResponseEntity<>("请选择要上传的文件", HttpStatus.BAD_REQUEST));
+            return new ResponseEntity<>("请选择要上传的文件", HttpStatus.BAD_REQUEST);
         }
 
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                // 确保上传目录存在
-                Path uploadPath = Paths.get(uploadDir);
-                if (!Files.exists(uploadPath)) {
-                    Files.createDirectories(uploadPath);
-                }
+        try {
+            long fileSize = file.getSize();
+            String originalFilename = file.getOriginalFilename();
 
-                // 生成唯一文件名
-                String originalFilename = file.getOriginalFilename();
-                String fileExtension = getFileExtension(originalFilename);
-                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-                String uniqueFilename = timestamp + "-" + UUID.randomUUID() + (fileExtension == null || fileExtension.trim().isEmpty() ? "" : "." + fileExtension);
+            System.out.println("========== 上传性能诊断 ==========");
+            System.out.println("文件名: " + originalFilename);
+            System.out.println("文件大小: " + formatFileSize(fileSize));
+            System.out.println("请求到达时间: " + LocalDateTime.now());
 
-                // 保存文件 - 使用更高效的方式
-                Path filePath = uploadPath.resolve(uniqueFilename);
-                try (InputStream inputStream = file.getInputStream();
-                     java.io.FileOutputStream fos = new java.io.FileOutputStream(filePath.toFile());
-                     java.io.BufferedOutputStream bos = new java.io.BufferedOutputStream(fos, 8192 * 10)) { // 80KB缓冲区
-                    byte[] buffer = new byte[8192 * 10]; // 80KB缓冲区
-                    int bytesRead;
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        bos.write(buffer, 0, bytesRead);
-                    }
-                    bos.flush();
-                }
-
-                return new ResponseEntity<>("文件上传成功: " + uniqueFilename, HttpStatus.OK);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return new ResponseEntity<>("文件上传失败: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            // 确保上传目录存在
+            long dirCheckStart = System.currentTimeMillis();
+            Path uploadPath = Paths.get(uploadDir);
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
             }
-        });
+            long dirCheckEnd = System.currentTimeMillis();
+            System.out.println("[1] 目录检查耗时: " + (dirCheckEnd - dirCheckStart) + "ms");
+
+            // 生成唯一文件名
+            long nameGenStart = System.currentTimeMillis();
+            String fileExtension = getFileExtension(originalFilename);
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            String uniqueFilename = timestamp + "-" + UUID.randomUUID() + (fileExtension == null || fileExtension.trim().isEmpty() ? "" : "." + fileExtension);
+            long nameGenEnd = System.currentTimeMillis();
+            System.out.println("[2] 文件名生成耗时: " + (nameGenEnd - nameGenStart) + "ms");
+
+            // 保存文件 - 使用Spring优化的transferTo()方法
+            Path filePath = uploadPath.resolve(uniqueFilename);
+            System.out.println("[3] 开始写入磁盘...");
+            long writeStartTime = System.currentTimeMillis();
+            file.transferTo(filePath.toFile());
+            long writeEndTime = System.currentTimeMillis();
+
+            long writeDuration = writeEndTime - writeStartTime;
+            long totalDuration = writeEndTime - requestStartTime;
+            double writeSpeed = fileSize / 1024.0 / 1024.0 / (writeDuration / 1000.0);
+            double totalSpeed = fileSize / 1024.0 / 1024.0 / (totalDuration / 1000.0);
+
+            System.out.println("[4] 磁盘写入耗时: " + writeDuration + "ms");
+            System.out.println("[5] 磁盘写入速度: " + String.format("%.2f", writeSpeed) + " MB/s");
+            System.out.println("[6] 总耗时: " + totalDuration + "ms");
+            System.out.println("[7] 整体速度: " + String.format("%.2f", totalSpeed) + " MB/s");
+            System.out.println("保存位置: " + filePath.toAbsolutePath());
+            System.out.println("===================================\n");
+
+            return new ResponseEntity<>("文件上传成功: " + uniqueFilename +
+                    " (耗时: " + totalDuration + "ms, 速度: " + String.format("%.2f", totalSpeed) + "MB/s)",
+                    HttpStatus.OK);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new ResponseEntity<>("文件上传失败: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private String formatFileSize(long size) {
+        if (size < 1024) {
+            return size + " B";
+        } else if (size < 1024 * 1024) {
+            return String.format("%.2f KB", size / 1024.0);
+        } else if (size < 1024 * 1024 * 1024) {
+            return String.format("%.2f MB", size / 1024.0 / 1024.0);
+        } else {
+            return String.format("%.2f GB", size / 1024.0 / 1024.0 / 1024.0);
+        }
     }
 
     /**
